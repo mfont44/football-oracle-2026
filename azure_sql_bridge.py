@@ -40,6 +40,7 @@ def pujar_dades():
             "multi_league_2026_summary": "csvfiles/multi_league_2026_summary.csv",
             "espn_2025_summary": "csvfiles/espn_2025_summary.csv",
             "statsbomb_summary": "csvfiles/statsbomb_summary.csv",
+            "clubs": "csvfiles/clubs.csv"
         }
 
         for taula, path in fitxers.items():

@@ -84,15 +84,31 @@ def get_data_from_azure(table_name: str) -> Optional[pd.DataFrame]:
 
 
 def _load_summary_df(table_name: str, csv_path: str) -> Optional[pd.DataFrame]:
-    """Càrrega híbrida: primer Azure (si st.secrets), sinó CSV local."""
-    df = get_data_from_azure(table_name)
-    if df is not None and not df.empty:
-        return df
+    """
+    Càrrega híbrida per als resums:
+    - Si hi ha st.secrets["azure_sql"], només es consulta Azure (sense intentar CSV local).
+    - Si NO hi ha secrets, es fa servir el CSV local si existeix.
+    """
+    try:
+        import streamlit as st  # només per comprovar si hi ha secrets
+
+        s = getattr(st, "secrets", None)
+        has_azure = bool(s and s.get("azure_sql"))
+    except Exception:
+        has_azure = False
+
+    if has_azure:
+        df = get_data_from_azure(table_name)
+        if df is not None and not df.empty:
+            return df
+        # En mode Azure, no fem fallback a fitxers locals
+        return None
+
     if os.path.isfile(csv_path):
         try:
             return pd.read_csv(csv_path, low_memory=False)
         except Exception:
-            pass
+            return None
     return None
 
 # Quotes individuals (excloses de feat_cols; es manté només market_expectation / ml_market_expectation)
@@ -159,6 +175,28 @@ def carregar_dades() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataF
         "name": "string",
     }
 
+    # Si hi ha st.secrets["azure_sql"], totes les dades han de venir d'Azure (sense CSV locals)
+    try:
+        import streamlit as st  # només per comprovar secrets
+
+        s = getattr(st, "secrets", None)
+        has_azure = bool(s and s.get("azure_sql"))
+    except Exception:
+        has_azure = False
+
+    if has_azure:
+        clubs = get_data_from_azure("clubs")
+        club_games = get_data_from_azure("club_games")
+        games = get_data_from_azure("games")
+        players = get_data_from_azure("players")
+        if clubs is None or club_games is None or games is None or players is None:
+            raise FileNotFoundError(
+                "No s'han trobat una o més taules a Azure SQL "
+                "('clubs', 'club_games', 'games', 'players')."
+            )
+        return clubs, club_games, games, players
+
+    # Mode local: lectura des de CSV
     clubs = pd.read_csv(PATH_CLUBS, dtype=dtype_clubs, low_memory=False)
     club_games = pd.read_csv(PATH_CLUB_GAMES, dtype=dtype_club_games, low_memory=False)
     games = pd.read_csv(
@@ -686,9 +724,22 @@ def fusionar_i_rolling(
         df["home_tactical_danger_index"] = 0.0
         df["away_tactical_danger_index"] = 0.0
 
-    # Variable competition_type (Lliga vs Copa vs Champions) des de competitions.csv
+    # Variable competition_type (Lliga vs Copa vs Champions) des de competitions (Azure o CSV)
     comp_type_map: dict[str, str] = {}
-    if os.path.isfile(PATH_COMPETITIONS):
+    comps: Optional[pd.DataFrame] = None
+
+    # Si hi ha Azure (st.secrets), només consultem la taula 'competitions'
+    try:
+        import streamlit as st  # només per comprovar secrets
+
+        s = getattr(st, "secrets", None)
+        has_azure = bool(s and s.get("azure_sql"))
+    except Exception:
+        has_azure = False
+
+    if has_azure:
+        comps = get_data_from_azure("competitions")
+    elif os.path.isfile(PATH_COMPETITIONS):
         try:
             comps = pd.read_csv(
                 PATH_COMPETITIONS,
@@ -696,22 +747,23 @@ def fusionar_i_rolling(
                 dtype={"competition_id": "string", "sub_type": "string", "type": "string"},
                 low_memory=False,
             )
-
-            def _map_comp(row: pd.Series) -> str:
-                t = (row.get("type") or "").lower()
-                st = (row.get("sub_type") or "").lower()
-                if "uefa_champions_league" in st:
-                    return "Champions"
-                if t == "domestic_league":
-                    return "League"
-                if t == "international_cup" and ("uefa" in st or "europa" in st or "conference" in st):
-                    return "Champions"
-                return "Cup"
-
-            comps["competition_type"] = comps.apply(_map_comp, axis=1)
-            comp_type_map = comps.set_index("competition_id")["competition_type"].to_dict()
         except Exception:
-            comp_type_map = {}
+            comps = None
+
+    if comps is not None and not comps.empty:
+        def _map_comp(row: pd.Series) -> str:
+            t = (row.get("type") or "").lower()
+            st = (row.get("sub_type") or "").lower()
+            if "uefa_champions_league" in st:
+                return "Champions"
+            if t == "domestic_league":
+                return "League"
+            if t == "international_cup" and ("uefa" in st or "europa" in st or "conference" in st):
+                return "Champions"
+            return "Cup"
+
+        comps["competition_type"] = comps.apply(_map_comp, axis=1)
+        comp_type_map = comps.set_index("competition_id")["competition_type"].to_dict()
 
     df["competition_type"] = df["competition_id"].map(comp_type_map).fillna("League")
     comp_code_map = {"League": 0, "Cup": 1, "Champions": 2}
