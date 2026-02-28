@@ -208,15 +208,27 @@ HERO_HTML = """
   <div class="hero-subtitle">Advanced AI-driven insights for Over 2.5 goals and exact scores.</div>
 </div>
 """
+def _pkl_base_dir():
+    """Carpeta on buscar els .pkl: primer la de app.py, després la pare."""
+    import os
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    parent = os.path.dirname(app_dir)
+    for base in (app_dir, parent):
+        if all(os.path.isfile(os.path.join(base, n)) for n in ("football_model.pkl", "feature_cols.pkl", "games_full.pkl")):
+            return base
+    return app_dir  # fallback: almenys buscar a app_dir
+
+
 @st.cache_resource
 def get_model_and_teams():
     """Model, llistat d'equips i mètriques (cachejat). Prioritza .pkl pre-entrenats per evitar timeout 503."""
     import os
     import joblib
 
-    pkl_model = "football_model.pkl"
-    pkl_cols = "feature_cols.pkl"
-    pkl_games = "games_full.pkl"
+    base = _pkl_base_dir()
+    pkl_model = os.path.join(base, "football_model.pkl")
+    pkl_cols = os.path.join(base, "feature_cols.pkl")
+    pkl_games = os.path.join(base, "games_full.pkl")
 
     if os.path.isfile(pkl_model) and os.path.isfile(pkl_cols) and os.path.isfile(pkl_games):
         with st.spinner("Carregant model pre-entrenat..."):
