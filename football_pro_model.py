@@ -47,13 +47,20 @@ PATH_PRUNED_FEATURES = os.path.join(CSV_DIR, "features_pruned.txt")
 PATH_FEATURES_CORRELATED_DROP = os.path.join(CSV_DIR, "features_correlated_drop.txt")
 
 # ---------- Azure SQL (càrrega híbrida amb st.secrets) ----------
+# Debug: activar per veure logs de càrrega Azure a consola / Streamlit
+_AZURE_DEBUG = os.environ.get("AZURE_SQL_DEBUG", "").lower() in ("1", "true", "yes")
+
+
 def _get_azure_engine() -> Optional[Any]:
-    """Engine SQLAlchemy per Azure SQL si st.secrets[\"azure_sql\"] està disponible (Streamlit Cloud)."""
+    """Engine SQLAlchemy per Azure SQL (mateixa cadena que azure_sql_bridge: Encrypt=yes;TrustServerCertificate=yes)."""
     try:
         import streamlit as st
         from sqlalchemy import create_engine
+
         s = getattr(st, "secrets", None)
         if not s or not s.get("azure_sql"):
+            if _AZURE_DEBUG:
+                print("[Azure] Engine no disponible: st.secrets o azure_sql no configurat.")
             return None
         az = s["azure_sql"]
         host = az.get("host") or "predict1.database.windows.net"
@@ -62,32 +69,52 @@ def _get_azure_engine() -> Optional[Any]:
         user = az.get("user")
         password = az.get("password")
         if not user or not password:
+            if _AZURE_DEBUG:
+                print("[Azure] Engine no disponible: falten user o password a st.secrets['azure_sql'].")
             return None
+        # Cadena idèntica a azure_sql_bridge.py
         params = urllib.parse.quote_plus(
             f"DRIVER={driver};SERVER={host};DATABASE={db};UID={user};PWD={password};"
             "Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=60;"
         )
-        return create_engine(
+        engine = create_engine(
             f"mssql+pyodbc:///?odbc_connect={params}",
             pool_pre_ping=True,
             connect_args={"fast_executemany": True},
         )
-    except Exception:
+        if _AZURE_DEBUG:
+            print(f"[Azure] Engine OK: {host} / {db}")
+        return engine
+    except Exception as e:
+        if _AZURE_DEBUG:
+            print(f"[Azure] Engine error: {type(e).__name__}: {e}")
         return None
 
 
 def get_data_from_azure(table_name: str) -> Optional[pd.DataFrame]:
-    """Retorna DataFrame amb SELECT * FROM dbo.table_name des d'Azure SQL, o None si falla o buit."""
+    """Retorna DataFrame amb SELECT * FROM dbo.[table_name]. Columnes normalitzades a minúscules."""
+    from sqlalchemy import text
+
     engine = _get_azure_engine()
     if engine is None:
         return None
+    query = f"SELECT * FROM dbo.[{table_name}]"
+    if _AZURE_DEBUG:
+        print(f"[Azure] Intentant carregar dbo.[{table_name}]...")
     try:
-        df = pd.read_sql(f"SELECT * FROM dbo.[{table_name}]", engine)
+        df = pd.read_sql(text(query), engine)
         if df.empty:
+            if _AZURE_DEBUG:
+                print(f"[Azure] dbo.[{table_name}] retornat buit.")
             return None
+        # Normalitzar noms de columna (Azure/pyodbc poden tornar majúscules o espais)
         df.columns = [str(c).lower().strip() for c in df.columns]
+        if _AZURE_DEBUG:
+            print(f"[Azure] dbo.[{table_name}] OK ({len(df)} files, {len(df.columns)} columnes)")
         return df
-    except Exception:
+    except Exception as e:
+        # Sempre mostrar l'error per diagnosticar permisos / nom taula
+        print(f"[Azure] ERROR dbo.[{table_name}]: {type(e).__name__}: {e}")
         return None
 
 
