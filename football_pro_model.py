@@ -49,6 +49,10 @@ PATH_FEATURES_CORRELATED_DROP = os.path.join(CSV_DIR, "features_correlated_drop.
 # ---------- Azure SQL (càrrega híbrida amb st.secrets) ----------
 # Debug: activar per veure logs de càrrega Azure a consola / Streamlit
 _AZURE_DEBUG = os.environ.get("AZURE_SQL_DEBUG", "").lower() in ("1", "true", "yes")
+# Últim missatge d'error Azure (per mostrar a st.error des de carregar_dades)
+_last_azure_error: Optional[str] = None
+# Només executar el diagnòstic de taules visibles una vegada per sessió
+_azure_diagnostic_done = False
 
 
 def _get_azure_engine() -> Optional[Any]:
@@ -65,6 +69,7 @@ def _get_azure_engine() -> Optional[Any]:
         az = s["azure_sql"]
         host = az.get("host") or "predict1.database.windows.net"
         db = az.get("database") or "football-oracle-db"
+        # Streamlit Cloud sol tenir ODBC Driver 18; si falla, provar "{ODBC Driver 17 for SQL Server}"
         driver = az.get("driver") or "{ODBC Driver 18 for SQL Server}"
         user = az.get("user")
         password = az.get("password")
@@ -91,13 +96,56 @@ def _get_azure_engine() -> Optional[Any]:
         return None
 
 
+def _extract_azure_error(e: Exception) -> str:
+    """Extrau el missatge detallat d'error (pyodbc/SQL Server) per diagnosticar."""
+    global _last_azure_error
+    detail = str(e)
+    orig = getattr(e, "orig", None)
+    if orig is not None:
+        detail = f"{type(orig).__name__}: {orig}"
+        if getattr(orig, "args", None):
+            detail = " ".join(str(a) for a in orig.args)
+    _last_azure_error = detail
+    return detail
+
+
 def get_data_from_azure(table_name: str) -> Optional[pd.DataFrame]:
     """Retorna DataFrame amb SELECT * FROM dbo.[table_name]. Columnes normalitzades a minúscules."""
+    global _last_azure_error, _azure_diagnostic_done
     from sqlalchemy import text
 
     engine = _get_azure_engine()
     if engine is None:
+        _last_azure_error = "Engine Azure no disponible (revisa st.secrets['azure_sql'])."
         return None
+
+    # Diagnòstic inicial (una vegada): llistar taules dbo visibles per l'usuari
+    if not _azure_diagnostic_done:
+        _azure_diagnostic_done = True
+        try:
+            diag_df = pd.read_sql(
+                text("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' ORDER BY TABLE_NAME"),
+                engine,
+            )
+            col0 = diag_df.columns[0]
+            tables_list = diag_df[col0].astype(str).tolist()
+            msg = f"[Azure] Taules dbo visibles ({len(tables_list)}): {tables_list}"
+            print(msg)
+            try:
+                import streamlit as st
+                st.write(msg)
+            except Exception:
+                pass
+        except Exception as diag_e:
+            err = _extract_azure_error(diag_e)
+            print(f"[Azure] No s'han pogut llistar taules: {err}")
+            try:
+                import streamlit as st
+                st.warning(f"Diagnòstic Azure: no es poden llistar taules. Error: {err}")
+            except Exception:
+                pass
+
+    # Query ultra-específica per SQL Server (esquema + claudàtors)
     query = f"SELECT * FROM dbo.[{table_name}]"
     if _AZURE_DEBUG:
         print(f"[Azure] Intentant carregar dbo.[{table_name}]...")
@@ -106,15 +154,22 @@ def get_data_from_azure(table_name: str) -> Optional[pd.DataFrame]:
         if df.empty:
             if _AZURE_DEBUG:
                 print(f"[Azure] dbo.[{table_name}] retornat buit.")
+            _last_azure_error = f"Taula dbo.[{table_name}] existeix però està buida."
             return None
-        # Normalitzar noms de columna (Azure/pyodbc poden tornar majúscules o espais)
+        # Normalització post-càrrega
         df.columns = [str(c).lower().strip() for c in df.columns]
+        msg_ok = f"Taula {table_name} carregada amb èxit. Columnes trobades: {list(df.columns)}"
+        print(f"[Azure] {msg_ok}")
         if _AZURE_DEBUG:
-            print(f"[Azure] dbo.[{table_name}] OK ({len(df)} files, {len(df.columns)} columnes)")
+            try:
+                import streamlit as st
+                st.write(msg_ok)
+            except Exception:
+                pass
         return df
     except Exception as e:
-        # Sempre mostrar l'error per diagnosticar permisos / nom taula
-        print(f"[Azure] ERROR dbo.[{table_name}]: {type(e).__name__}: {e}")
+        err = _extract_azure_error(e)
+        print(f"[Azure] ERROR dbo.[{table_name}]: {err}")
         return None
 
 
@@ -225,9 +280,15 @@ def carregar_dades() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataF
         games = get_data_from_azure("games")
         players = get_data_from_azure("players")
         if clubs is None or club_games is None or games is None or players is None:
+            try:
+                import streamlit as st
+                if _last_azure_error:
+                    st.error(f"Dades no trobades a Azure SQL. Detall tècnic: {_last_azure_error}")
+            except Exception:
+                pass
             raise FileNotFoundError(
                 "No s'han trobat una o més taules a Azure SQL "
-                "('clubs', 'club_games', 'games', 'players')."
+                "('clubs', 'club_games', 'games', 'players'). Revisa els logs o el missatge d'error anterior."
             )
         return clubs, club_games, games, players
 
