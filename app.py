@@ -27,54 +27,159 @@ except ImportError as e:
     st.error(f"No s'ha pogut importar el model: {e}. Assegura't que football_pro_model.py és a la mateixa carpeta.")
     st.stop()
 
-# ============== DARK / APPLE PREMIUM (minimalista) ==============
-# zinc-900 #18181b, zinc-800 #27272a, zinc-500 #71717a, accent green #22c55e
+# ============== ESTÈTICA WEB (style.css + màxim contrast) ==============
+# Integració: variables, Tailwind-like (bg-black, card, glow), overrides Streamlit
 STYLE = """
 <style>
+  /* ---- Variables (estil style.css) ---- */
+  :root {
+    --bg-black: #000000;
+    --bg-zinc-900: #18181b;
+    --border-zinc-700: #3f3f46;
+    --text-white: #FFFFFF;
+    --text-black: #000000;
+    --accent-green: #22c55e;
+    --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  [data-testid="stAppViewContainer"], .stApp { background: #000000 !important; }
-  html, body, [data-testid="stAppViewContainer"], p, .stMarkdown {
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
-    color: #a1a1aa;
+
+  /* ---- Base (fons negre, tipografia) ---- */
+  [data-testid="stAppViewContainer"], .stApp, html, body { background: var(--bg-black) !important; }
+  html, body, p, .stMarkdown {
+    font-family: var(--font-sans) !important;
+    color: var(--text-white);
   }
   h1, h2, h3, .stSubheader {
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-    background: linear-gradient(180deg, #ffffff 0%, #71717a 100%);
+    font-family: var(--font-sans) !important;
+    color: var(--text-white) !important;
+  }
+
+  /* ---- Màxim contrast: TOTS els botons = text negre, fons blanc ---- */
+  .stButton > button,
+  .stButton > button[kind="primary"],
+  .stButton > button[kind="secondary"] {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    border: none !important;
+    font-weight: 600 !important;
+    border-radius: 0.75rem !important;
+    font-family: var(--font-sans) !important;
+  }
+  .stButton > button:hover,
+  .stButton > button[kind="primary"]:hover,
+  .stButton > button[kind="secondary"]:hover {
+    background: #f4f4f5 !important;
+    color: #000000 !important;
+    box-shadow: 0 0 24px rgba(34, 197, 94, 0.3);
+  }
+
+  /* ---- Selectors: text blanc, fons negre, borde zinc-700 ---- */
+  .stSelectbox label, .stCheckbox label, .stNumberInput label,
+  label[data-testid="stWidgetLabel"] { color: #FFFFFF !important; font-family: var(--font-sans) !important; }
+  div[data-testid="stSelectbox"] > div {
+    background: #000000 !important;
+    border: 2px solid var(--border-zinc-700) !important;
+    border-radius: 0.5rem !important;
+  }
+  div[data-testid="stSelectbox"] > div:focus-within {
+    border-color: #71717a !important;
+    border-width: 2px !important;
+  }
+  div[data-testid="stSelectbox"] input,
+  div[data-testid="stSelectbox"] span,
+  div[data-testid="stSelectbox"] [role="combobox"] { color: #FFFFFF !important; }
+  div[data-testid="stNumberInput"] input {
+    background: #000000 !important;
+    border: 2px solid var(--border-zinc-700) !important;
+    color: #FFFFFF !important;
+    border-radius: 0.5rem !important;
+  }
+  div[data-testid="stNumberInput"] input:focus {
+    border-color: #71717a !important;
+    box-shadow: none !important;
+  }
+
+  /* ---- Cards (Tailwind-like) ---- */
+  .card {
+    background: var(--bg-zinc-900);
+    border: 1px solid var(--border-zinc-700);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .stMetric, [data-testid="stVerticalBlock"] > div {
+    background: var(--bg-zinc-900) !important;
+    border: 1px solid var(--border-zinc-700) !important;
+    border-radius: 0.75rem;
+    padding: 1rem;
+  }
+  .stMetric label, .stMetric [data-testid="stMetricValue"] { color: #FFFFFF !important; }
+
+  /* ---- Header (estil web) ---- */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-zinc-700);
+    margin-bottom: 1.5rem;
+    font-family: var(--font-sans);
+  }
+  .app-header .logo { font-size: 1.25rem; font-weight: 700; color: var(--text-white); }
+  .app-header .tagline { font-size: 0.875rem; color: #a1a1aa; }
+
+  /* ---- Hero: gradient gris → blanc ---- */
+  .hero {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-family: var(--font-sans);
+  }
+  .hero-title {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 50%, #71717a 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .hero-title { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; text-align: center; margin-bottom: 0.5rem;
-    background: linear-gradient(180deg, #ffffff 0%, #71717a 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    font-family: 'Inter', 'Segoe UI', sans-serif; }
-  .hero-subtitle { font-size: 1rem; color: #71717a; text-align: center; margin-bottom: 2rem; font-family: 'Inter', 'Segoe UI', sans-serif; }
-  .stMetric, [data-testid="stVerticalBlock"] > div { background: rgba(24, 24, 27, 0.6) !important; border: 1px solid #27272a; border-radius: 0.75rem; padding: 1rem; }
-  .team-header { font-size: 1.5rem; font-weight: 600; color: #fff; text-align: center; margin: 0.5rem 0; font-family: 'Inter', 'Segoe UI', sans-serif; }
-  .crest { font-size: 2.5rem; text-align: center; margin-bottom: 0.25rem; }
+  .hero-subtitle {
+    font-size: 1rem;
+    color: #E5E5E5;
+  }
+
+  /* ---- Glow (style.css) ---- */
+  .glow {
+    box-shadow: 0 0 24px rgba(34, 197, 94, 0.25);
+    border: 1px solid var(--border-zinc-700);
+    border-radius: 0.75rem;
+    background: var(--bg-zinc-900);
+    padding: 1.25rem;
+  }
   .verdict-box {
-    background: rgba(24, 24, 27, 0.6); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #27272a;
-    color: #fff; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+    background: var(--bg-zinc-900);
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-zinc-700);
+    color: #FFFFFF !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
   }
   .h2h-card {
-    background: rgba(24, 24, 27, 0.5); padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #27272a;
-    margin: 0.25rem 0; color: #a1a1aa;
+    background: var(--bg-zinc-900);
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-zinc-700);
+    margin: 0.25rem 0;
+    color: #FFFFFF;
   }
-  .alerta-sorpresa { background: rgba(24, 24, 27, 0.5); padding: 1rem; border-radius: 0.75rem; border: 1px solid #27272a; margin: 1rem 0; color: #a1a1aa; }
-  .badge-generic { display:inline-block; padding:0.15rem 0.5rem; border-radius:999px; font-size:0.75rem; margin-left:0.5rem; color:#71717a; border:1px solid #27272a; }
-  .stSelectbox label, .stCheckbox label { color: #fff !important; font-family: 'Inter', 'Segoe UI', sans-serif !important; }
-  [data-testid="stSidebar"] { background: #000000 !important; border-right: 1px solid #27272a; }
-  .stExpander { border: 1px solid #27272a; border-radius: 0.75rem; background: rgba(24, 24, 27, 0.3); }
-  .stExpander label { color: #fff !important; font-family: 'Inter', 'Segoe UI', sans-serif !important; }
-  .stButton > button[kind="primary"] {
-    background: #fff !important; color: #000 !important; border: 1px solid #27272a !important;
-    font-weight: 600 !important; border-radius: 0.75rem !important;
-    box-shadow: 0 0 24px rgba(34, 197, 94, 0.35);
-    font-family: 'Inter', 'Segoe UI', sans-serif !important;
-  }
-  .stButton > button[kind="primary"]:hover {
-    background: #f4f4f5 !important; color: #000 !important;
-    box-shadow: 0 0 32px rgba(34, 197, 94, 0.45);
-  }
+  .team-header { font-size: 1.5rem; font-weight: 600; color: #FFFFFF; text-align: center; margin: 0.5rem 0; font-family: var(--font-sans); }
+  .crest { font-size: 2.5rem; text-align: center; margin-bottom: 0.25rem; }
+  .alerta-sorpresa { background: var(--bg-zinc-900); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border-zinc-700); margin: 1rem 0; color: #E5E5E5; }
+  .badge-generic { display:inline-block; padding:0.15rem 0.5rem; border-radius:999px; font-size:0.75rem; margin-left:0.5rem; color: #E5E5E5; border:1px solid var(--border-zinc-700); }
+
+  /* ---- Animació fade-in-up (style.css) ---- */
   .fade-in-up {
     animation: fadeInUp 0.5s ease-out forwards;
   }
@@ -83,11 +188,25 @@ STYLE = """
     to { opacity: 1; transform: translateY(0); }
   }
   .result-block { animation: fadeInUp 0.5s ease-out forwards; }
+
+  [data-testid="stSidebar"] { background: var(--bg-black) !important; border-right: 1px solid var(--border-zinc-700); }
+  .stExpander { border: 2px solid var(--border-zinc-700); border-radius: 0.75rem; background: var(--bg-zinc-900); }
+  .stExpander label { color: #FFFFFF !important; font-family: var(--font-sans) !important; }
 </style>
 """
+
+# Capa HTML: Header + Hero (estil web / Tailwind-like)
+HEADER_HTML = """
+<header class="app-header">
+  <div class="logo">⚽ Football Oracle</div>
+  <span class="tagline">Over 2.5 · Poisson · XGBoost</span>
+</header>
+"""
 HERO_HTML = """
-<div class="hero-title">Football Oracle 2026. Predict the unpredictable.</div>
-<div class="hero-subtitle">Advanced AI-driven insights for Over 2.5 goals and exact scores.</div>
+<div class="hero">
+  <div class="hero-title">Football Oracle 2026. Predict the unpredictable.</div>
+  <div class="hero-subtitle">Advanced AI-driven insights for Over 2.5 goals and exact scores.</div>
+</div>
 """
 @st.cache_resource
 def get_model_and_teams():
@@ -133,15 +252,15 @@ def plot_gauge_over25(over_25_prob: float, height: int = 200) -> go.Figure:
         value=over_25_prob,
         number=dict(suffix="%", font=dict(size=22, color="#ffffff")),
         gauge=dict(
-            axis=dict(range=[0, 100], tickwidth=1, tickfont=dict(color="#71717a", size=10)),
+            axis=dict(range=[0, 100], tickwidth=1, tickfont=dict(color="#FFFFFF", size=10)),
             bar=dict(color=bar_color),
             bgcolor="rgba(24, 24, 27, 0.8)",
             borderwidth=1,
-            bordercolor="#27272a",
+            bordercolor="#3f3f46",
             steps=[],
             threshold=dict(line=dict(color=threshold_color, width=2), thickness=0.75, value=over_25_prob),
         ),
-        title=dict(text="P(Over 2.5 gols)", font=dict(size=14, color="#71717a")),
+        title=dict(text="P(Over 2.5 gols)", font=dict(size=14, color="#FFFFFF")),
     ))
     fig.update_layout(
         margin=dict(t=35, b=20, l=30, r=30),
@@ -170,12 +289,12 @@ def plot_heatmap_scores(score_matrix: np.ndarray) -> go.Figure:
     fig.update_layout(
         xaxis_title="Gols local",
         yaxis_title="Gols visitant",
-        xaxis=dict(side="bottom", tickfont=dict(color="#71717a")),
-        yaxis=dict(tickfont=dict(color="#71717a"), autorange="reversed"),
+        xaxis=dict(side="bottom", tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46", showgrid=True),
+        yaxis=dict(tickfont=dict(color="#FFFFFF"), autorange="reversed", gridcolor="#3f3f46", showgrid=True),
         margin=dict(t=30, b=40, l=50, r=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif"),
+        font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif"),
         height=380,
     )
     return fig
@@ -221,11 +340,11 @@ def plot_radar(
         fillcolor="rgba(113, 113, 122, 0.15)",
     ))
     fig.update_layout(
-        polar=dict(bgcolor="rgba(24, 24, 27, 0.9)", radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(color="#71717a"))),
+        polar=dict(bgcolor="rgba(24, 24, 27, 0.9)", radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46")),
         showlegend=True,
-        legend=dict(font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif")),
+        legend=dict(font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif")),
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif"),
+        font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif"),
         height=380,
     )
     return fig
@@ -280,12 +399,12 @@ def plot_real_vs_potential(
         title="Rendiment Real 2025 vs Potencial Històric",
         yaxis_title="Índex normalitzat (0-1)",
         xaxis_title="Equip",
-        yaxis=dict(range=[0, 1.1], tickfont=dict(color="#71717a")),
-        xaxis=dict(tickfont=dict(color="#71717a")),
+        yaxis=dict(range=[0, 1.1], tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46", showgrid=True),
+        xaxis=dict(tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46", showgrid=True),
         margin=dict(t=60, b=40, l=60, r=40),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif"),
+        font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif"),
         height=360,
     )
     return fig
@@ -305,6 +424,11 @@ def run_app() -> None:
         st.error(f"Error en carregar el model: {e}")
         return
 
+    if _model is None or (hasattr(fpm, "model") and fpm.model is None):
+        st.error("**Error: Model no disponible. Revisa els fitxers .pkl.**")
+        return
+
+    st.markdown(HEADER_HTML, unsafe_allow_html=True)
     st.markdown(HERO_HTML, unsafe_allow_html=True)
 
     with st.expander("Mètriques de rendiment del model"):
@@ -330,12 +454,12 @@ def run_app() -> None:
                 title="Matriu de confusió",
                 xaxis_title="Predit",
                 yaxis_title="Real",
-                xaxis=dict(tickfont=dict(color="#71717a")),
-                yaxis=dict(tickfont=dict(color="#71717a"), autorange="reversed"),
+                xaxis=dict(tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46"),
+                yaxis=dict(tickfont=dict(color="#FFFFFF"), autorange="reversed", gridcolor="#3f3f46"),
                 margin=dict(t=40, b=40, l=80, r=40),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif"),
+                font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif"),
                 height=360,
             )
             st.plotly_chart(fig_cm, use_container_width=True)
@@ -354,12 +478,12 @@ def run_app() -> None:
                 title="Top 10 Feature Importance",
                 xaxis_title="Importància",
                 yaxis_title="Variable",
-                xaxis=dict(tickfont=dict(color="#71717a")),
-                yaxis=dict(tickfont=dict(color="#71717a"), autorange="reversed"),
+                xaxis=dict(tickfont=dict(color="#FFFFFF"), gridcolor="#3f3f46", showgrid=True),
+                yaxis=dict(tickfont=dict(color="#FFFFFF"), autorange="reversed", gridcolor="#3f3f46", showgrid=True),
                 margin=dict(t=40, b=40, l=120, r=80),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#fafafa", family="Inter, Segoe UI, sans-serif"),
+                font=dict(color="#FFFFFF", family="Inter, Segoe UI, sans-serif"),
                 height=400,
             )
             st.plotly_chart(fig_imp, use_container_width=True)
@@ -372,6 +496,8 @@ def run_app() -> None:
                 return i
         return 0
 
+    # Card form (estil web / Tailwind-like)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     # Selectors al cos principal: dues columnes amples
     col_local, col_away = st.columns(2)
     with col_local:
@@ -385,6 +511,7 @@ def run_app() -> None:
         first_leg_diff = st.number_input("Diferència anada (local − visitant)", min_value=-10, max_value=10, value=0, step=1, key="first_leg_diff")
 
     run_clicked = st.button("Predir", type="primary", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     api_key = os.environ.get("FOOTBALL_DATA_ORG_KEY", os.environ.get("API_FOOTBALL_KEY", "LA_TEVA_KEY_AQUÍ"))
     try:
@@ -398,34 +525,37 @@ def run_app() -> None:
         st.session_state.pop("live_adjusted_result", None)
         st.session_state.pop("baixes_detectades", None)
         result: Optional[dict[str, Any]] = None
-        try:
-            result = predictor(nom_local, nom_visitant, verbose=False, is_knockout=is_knockout, is_return_leg=is_return_leg, first_leg_diff=float(first_leg_diff))
-        except Exception as e:
-            st.error(f"Error en la predicció: {e}")
-            import traceback
-            with st.expander("Detall de l'error (debug)"):
-                st.code(traceback.format_exc())
+        if fpm.model is None:
+            st.error("**Error: Model no disponible. Revisa els fitxers .pkl.**")
         else:
-            if result is None:
-                id_l, sugg_l = cercar_equip(nom_local, fpm.clubs_df) if fpm.clubs_df is not None else (None, [])
-                id_a, sugg_a = cercar_equip(nom_visitant, fpm.clubs_df) if fpm.clubs_df is not None else (None, [])
-                if id_l is None and sugg_l:
-                    st.warning(f"Equip no trobat: **{nom_local}**. Suggeriments: {', '.join(sugg_l[:3])}")
-                if id_a is None and sugg_a:
-                    st.warning(f"Equip no trobat: **{nom_visitant}**. Suggeriments: {', '.join(sugg_a[:3])}")
+            try:
+                result = predictor(nom_local, nom_visitant, verbose=False, is_knockout=is_knockout, is_return_leg=is_return_leg, first_leg_diff=float(first_leg_diff))
+            except Exception as e:
+                st.error(f"Error en la predicció: {e}")
+                import traceback
+                with st.expander("Detall de l'error (debug)"):
+                    st.code(traceback.format_exc())
             else:
-                st.session_state["last_result"] = result
-                st.session_state["last_nom_local"] = nom_local
-                st.session_state["last_nom_visitant"] = nom_visitant
-                st.toast("Predicció calculada.", icon="✅")
+                if result is None:
+                    id_l, sugg_l = cercar_equip(nom_local, fpm.clubs_df) if fpm.clubs_df is not None else (None, [])
+                    id_a, sugg_a = cercar_equip(nom_visitant, fpm.clubs_df) if fpm.clubs_df is not None else (None, [])
+                    if id_l is None and sugg_l:
+                        st.warning(f"Equip no trobat: **{nom_local}**. Suggeriments: {', '.join(sugg_l[:3])}")
+                    if id_a is None and sugg_a:
+                        st.warning(f"Equip no trobat: **{nom_visitant}**. Suggeriments: {', '.join(sugg_a[:3])}")
+                else:
+                    st.session_state["last_result"] = result
+                    st.session_state["last_nom_local"] = nom_local
+                    st.session_state["last_nom_visitant"] = nom_visitant
+                    st.toast("Predicció calculada.", icon="✅")
 
     if not st.session_state.get("last_result"):
         st.info("Tria equip local i visitant i prem **Predir**.")
         return
 
-    # Mostrar resultat (inicial o ajustat per baixes) amb animació fade-in-up
+    # Resultats premium: dins div amb fade-in-up + glow (style.css)
     if st.session_state.get("last_result"):
-        st.markdown('<div class="result-block">', unsafe_allow_html=True)
+        st.markdown('<div class="fade-in-up glow result-block">', unsafe_allow_html=True)
         display_result = st.session_state.get("live_adjusted_result") or st.session_state["last_result"]
         nom_local_c = display_result.get("nom_local", st.session_state.get("last_nom_local", ""))
         nom_visitant_c = display_result.get("nom_visitant", st.session_state.get("last_nom_visitant", ""))
@@ -547,7 +677,7 @@ def run_app() -> None:
                     st.markdown(
                         f'<div class="h2h-card" style="text-align:center; padding:1.2rem;">'
                         f'<div style="font-size:2rem; font-weight:700; color:#ffffff;">{score}</div>'
-                        f'<div style="color:#a0a0a0; margin-top:0.3rem;">{float(prob):.1f}%</div>'
+                        f'<div style="color:#E5E5E5; margin-top:0.3rem;">{float(prob):.1f}%</div>'
                         f'</div>',
                         unsafe_allow_html=True,
                     )
@@ -578,9 +708,9 @@ def run_app() -> None:
         away_acc = float(display_result.get("away_form_acceleration", 0) or 0)
         acc_indicators = []
         if home_acc > 0:
-            acc_indicators.append(f'<span style="color:#a0a0a0;">↑ {nom_local_c}: ratxa en alça</span>')
+            acc_indicators.append(f'<span style="color:#E5E5E5;">↑ {nom_local_c}: ratxa en alça</span>')
         if away_acc > 0:
-            acc_indicators.append(f'<span style="color:#a0a0a0;">↑ {nom_visitant_c}: ratxa en alça</span>')
+            acc_indicators.append(f'<span style="color:#E5E5E5;">↑ {nom_visitant_c}: ratxa en alça</span>')
         if acc_indicators:
             st.markdown(" ".join(acc_indicators))
 
