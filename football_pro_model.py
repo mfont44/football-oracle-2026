@@ -67,18 +67,26 @@ def _get_azure_engine() -> Optional[Any]:
             f"DRIVER={driver};SERVER={host};DATABASE={db};UID={user};PWD={password};"
             "Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=60;"
         )
-        return create_engine(f"mssql+pyodbc:///?odbc_connect={params}", pool_pre_ping=True)
+        return create_engine(
+            f"mssql+pyodbc:///?odbc_connect={params}",
+            pool_pre_ping=True,
+            connect_args={"fast_executemany": True},
+        )
     except Exception:
         return None
 
 
 def get_data_from_azure(table_name: str) -> Optional[pd.DataFrame]:
-    """Retorna DataFrame amb SELECT * FROM table_name des d'Azure SQL, o None si falla."""
+    """Retorna DataFrame amb SELECT * FROM dbo.table_name des d'Azure SQL, o None si falla o buit."""
     engine = _get_azure_engine()
     if engine is None:
         return None
     try:
-        return pd.read_sql(f"SELECT * FROM {table_name}", engine)
+        df = pd.read_sql(f"SELECT * FROM dbo.[{table_name}]", engine)
+        if df.empty:
+            return None
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        return df
     except Exception:
         return None
 
