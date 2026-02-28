@@ -55,10 +55,11 @@ _last_azure_error: Optional[str] = None
 _azure_diagnostic_done = False
 # Engine que ha funcionat (per no tornar a provar drivers a cada taula)
 _cached_azure_engine: Optional[Any] = None
-# Drivers a provar en ordre (Linux/Streamlit Cloud sol tenir 17; Windows 18)
+# Drivers a provar (preinstal·lats a Streamlit Cloud; sense packages.txt)
 _DRIVERS_TO_TRY = [
     "{ODBC Driver 18 for SQL Server}",
     "{ODBC Driver 17 for SQL Server}",
+    "{FreeTDS}",
     "ODBC Driver 18 for SQL Server",
     "ODBC Driver 17 for SQL Server",
 ]
@@ -66,23 +67,17 @@ _pyodbc_drivers_logged = False
 
 
 def _log_pyodbc_drivers() -> None:
-    """Imprimeix els drivers ODBC instal·lats (diagnòstic per Streamlit Cloud / Linux)."""
+    """Mostra els drivers ODBC disponibles al sistema (abans de connectar)."""
     global _pyodbc_drivers_logged
     if _pyodbc_drivers_logged:
         return
     _pyodbc_drivers_logged = True
     try:
         import pyodbc
-        drivers = pyodbc.drivers()
-        msg = f"[Azure] pyodbc.drivers() al servidor: {drivers}"
-        print(msg)
-        try:
-            import streamlit as st
-            st.write(msg)
-        except Exception:
-            pass
-    except Exception as e:
-        print(f"[Azure] No s'han pogut llistar drivers pyodbc: {e}")
+        import streamlit as st
+        st.write(f"Drivers disponibles al sistema: {pyodbc.drivers()}")
+    except Exception:
+        pass
 
 
 def _get_azure_engine() -> Optional[Any]:
@@ -145,24 +140,13 @@ def _get_azure_engine() -> Optional[Any]:
                 with engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
                 _cached_azure_engine = engine
-                print(f"[Azure] Engine OK amb driver: {driver}")
-                if _AZURE_DEBUG:
-                    print(f"[Azure] Connexió: {host} / {db}")
                 return engine
             except Exception as e:
-                last_err = str(e)
                 orig = getattr(e, "orig", None)
-                if orig and getattr(orig, "args", None):
-                    last_err = " ".join(str(a) for a in orig.args)
-                if "file not found" in last_err.lower() or "can't open lib" in last_err.lower():
-                    print(f"[Azure] Driver no disponible: {driver} -> {last_err[:80]}...")
-                    continue
-                _last_azure_error = last_err
-                print(f"[Azure] Error amb driver {driver}: {last_err}")
-                return None
+                last_err = " ".join(str(a) for a in orig.args) if (orig and getattr(orig, "args", None)) else str(e)
+                continue
 
         _last_azure_error = f"Cap driver ODBC ha funcionat. Últim error: {last_err}"
-        print(f"[Azure] {_last_azure_error}")
         return None
     except Exception as e:
         _last_azure_error = str(e)
