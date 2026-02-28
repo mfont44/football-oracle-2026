@@ -23,6 +23,7 @@ from datetime import date
 from typing import Any, Optional
 import difflib
 
+import joblib
 import numpy as np
 import pandas as pd
 from scipy.stats import poisson
@@ -1857,6 +1858,15 @@ def main() -> tuple[Any, pd.DataFrame, list[str]]:
         except Exception as e:
             print(f"  -> No s'ha pogut desar importància: {e}")
     print(f"\nAccuracy (test, amb ESPN): {acc:.4f}")
+
+    # Desar model i artefactes per càrrega ràpida a Streamlit Cloud (evitar timeout 503)
+    try:
+        joblib.dump(model, "football_model.pkl")
+        joblib.dump(feature_cols_list, "feature_cols.pkl")
+        joblib.dump(games_full, "games_full.pkl")
+        print("✅ Fitxers .pkl generats correctament.")
+    except Exception as e:
+        print(f"  -> No s'han pogut desar .pkl: {e}")
 
     return model, df, feature_cols_list, test_accuracy, test_confusion_matrix, feature_importance_df, baseline_accuracy
 

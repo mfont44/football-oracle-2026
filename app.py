@@ -51,7 +51,23 @@ STYLE = """
 """
 @st.cache_resource
 def get_model_and_teams():
-    """Model, llistat d'equips i mètriques de rendiment (cachejats una sola vegada)."""
+    """Model, llistat d'equips i mètriques (cachejat). Prioritza .pkl pre-entrenats per evitar timeout 503."""
+    import os
+    import joblib
+
+    pkl_model = "football_model.pkl"
+    pkl_cols = "feature_cols.pkl"
+    pkl_games = "games_full.pkl"
+
+    if os.path.isfile(pkl_model) and os.path.isfile(pkl_cols) and os.path.isfile(pkl_games):
+        with st.spinner("Carregant model pre-entrenat..."):
+            fpm.model = joblib.load(pkl_model)
+            fpm.feature_cols = joblib.load(pkl_cols)
+            fpm.games_full = joblib.load(pkl_games)
+            fpm.clubs_df = fpm.games_full.get("clubs")
+            noms = fpm.llistat_equips(fpm.clubs_df) if fpm.clubs_df is not None else []
+            return fpm.model, noms, None, None, None, None
+
     with st.spinner("Carregant dades i entrenant el model (només la primera vegada)..."):
         model, _df, _, acc, conf_mat, imp_df, base_acc = model_main()
         noms = fpm.llistat_equips(fpm.clubs_df) if fpm.clubs_df is not None else []
