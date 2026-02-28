@@ -53,44 +53,119 @@ _AZURE_DEBUG = os.environ.get("AZURE_SQL_DEBUG", "").lower() in ("1", "true", "y
 _last_azure_error: Optional[str] = None
 # Només executar el diagnòstic de taules visibles una vegada per sessió
 _azure_diagnostic_done = False
+# Engine que ha funcionat (per no tornar a provar drivers a cada taula)
+_cached_azure_engine: Optional[Any] = None
+# Drivers a provar en ordre (Linux/Streamlit Cloud sol tenir 17; Windows 18)
+_DRIVERS_TO_TRY = [
+    "{ODBC Driver 18 for SQL Server}",
+    "{ODBC Driver 17 for SQL Server}",
+    "ODBC Driver 18 for SQL Server",
+    "ODBC Driver 17 for SQL Server",
+]
+_pyodbc_drivers_logged = False
+
+
+def _log_pyodbc_drivers() -> None:
+    """Imprimeix els drivers ODBC instal·lats (diagnòstic per Streamlit Cloud / Linux)."""
+    global _pyodbc_drivers_logged
+    if _pyodbc_drivers_logged:
+        return
+    _pyodbc_drivers_logged = True
+    try:
+        import pyodbc
+        drivers = pyodbc.drivers()
+        msg = f"[Azure] pyodbc.drivers() al servidor: {drivers}"
+        print(msg)
+        try:
+            import streamlit as st
+            st.write(msg)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[Azure] No s'han pogut llistar drivers pyodbc: {e}")
 
 
 def _get_azure_engine() -> Optional[Any]:
-    """Engine SQLAlchemy per Azure SQL (mateixa cadena que azure_sql_bridge: Encrypt=yes;TrustServerCertificate=yes)."""
+    """
+    Engine SQLAlchemy per Azure SQL.
+    Llegeix st.secrets['azure_sql'] (host, database, user, password).
+    Prova diversos drivers ODBC (18, 17) per compatibilitat Linux/Streamlit Cloud.
+    Cadena: Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=60 (idèntic a azure_sql_bridge).
+    """
+    global _cached_azure_engine, _last_azure_error
+    if _cached_azure_engine is not None:
+        return _cached_azure_engine
+
     try:
         import streamlit as st
-        from sqlalchemy import create_engine
+        from sqlalchemy import create_engine, text
 
         s = getattr(st, "secrets", None)
         if not s or not s.get("azure_sql"):
+            _last_azure_error = "st.secrets o azure_sql no configurat."
             if _AZURE_DEBUG:
                 print("[Azure] Engine no disponible: st.secrets o azure_sql no configurat.")
             return None
+
         az = s["azure_sql"]
-        host = az.get("host") or "predict1.database.windows.net"
-        db = az.get("database") or "football-oracle-db"
-        # Streamlit Cloud sol tenir ODBC Driver 18; si falla, provar "{ODBC Driver 17 for SQL Server}"
-        driver = az.get("driver") or "{ODBC Driver 18 for SQL Server}"
+        host = str(az.get("host") or "predict1.database.windows.net").strip()
+        db = str(az.get("database") or "football-oracle-db").strip()
         user = az.get("user")
         password = az.get("password")
         if not user or not password:
+            _last_azure_error = "Falten user o password a st.secrets['azure_sql']."
             if _AZURE_DEBUG:
-                print("[Azure] Engine no disponible: falten user o password a st.secrets['azure_sql'].")
+                print("[Azure] Engine no disponible: falten user o password.")
             return None
-        # Cadena idèntica a azure_sql_bridge.py
-        params = urllib.parse.quote_plus(
-            f"DRIVER={driver};SERVER={host};DATABASE={db};UID={user};PWD={password};"
-            "Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=60;"
-        )
-        engine = create_engine(
-            f"mssql+pyodbc:///?odbc_connect={params}",
-            pool_pre_ping=True,
-            connect_args={"fast_executemany": True},
-        )
-        if _AZURE_DEBUG:
-            print(f"[Azure] Engine OK: {host} / {db}")
-        return engine
+        user = str(user).strip()
+        password = str(password)
+
+        # Diagnòstic: drivers ODBC instal·lats (abans de connectar)
+        _log_pyodbc_drivers()
+
+        # Si l'usuari ha posat driver a secrets, provar-lo primer
+        drivers_to_try = list(_DRIVERS_TO_TRY)
+        if az.get("driver"):
+            custom = str(az.get("driver")).strip()
+            if custom and custom not in drivers_to_try:
+                drivers_to_try.insert(0, custom)
+
+        last_err = ""
+        for driver in drivers_to_try:
+            try:
+                params = urllib.parse.quote_plus(
+                    f"DRIVER={driver};SERVER={host};DATABASE={db};UID={user};PWD={password};"
+                    "Encrypt=yes;TrustServerCertificate=yes;LoginTimeout=60;"
+                )
+                engine = create_engine(
+                    f"mssql+pyodbc:///?odbc_connect={params}",
+                    pool_pre_ping=True,
+                    connect_args={"fast_executemany": True},
+                )
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                _cached_azure_engine = engine
+                print(f"[Azure] Engine OK amb driver: {driver}")
+                if _AZURE_DEBUG:
+                    print(f"[Azure] Connexió: {host} / {db}")
+                return engine
+            except Exception as e:
+                last_err = str(e)
+                orig = getattr(e, "orig", None)
+                if orig and getattr(orig, "args", None):
+                    last_err = " ".join(str(a) for a in orig.args)
+                if "file not found" in last_err.lower() or "can't open lib" in last_err.lower():
+                    print(f"[Azure] Driver no disponible: {driver} -> {last_err[:80]}...")
+                    continue
+                _last_azure_error = last_err
+                print(f"[Azure] Error amb driver {driver}: {last_err}")
+                return None
+
+        _last_azure_error = f"Cap driver ODBC ha funcionat. Últim error: {last_err}"
+        print(f"[Azure] {_last_azure_error}")
+        return None
     except Exception as e:
+        _last_azure_error = str(e)
         if _AZURE_DEBUG:
             print(f"[Azure] Engine error: {type(e).__name__}: {e}")
         return None
